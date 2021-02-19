@@ -25,7 +25,6 @@ def getDiff(fout, container, filename, *args):
 
     upper = data['UpperDir']+filename
     # deduce lower
-    print data['LowerDir']
     for lowerDir in data['LowerDir'].split(':'): # first is outer image, maybe
         lower = lowerDir+filename
         if os.path.exists(lower):
