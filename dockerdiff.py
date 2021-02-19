@@ -20,9 +20,10 @@ def getDiff(fout, container, filename, *args):
     if 'Name' in graphDriver and not graphDriver['Name'].startswith('overlay'):
         raise Exception('graphDriver not overlay')
     data = graphDriver.get('Data',{})
-    if 'UpperDir' not in data or 'LowerDir' not in data:
-        raise Exception('UpperDir or LowerDir is not published')
+    if 'UpperDir' not in data or 'LowerDir' not in data or 'MergedDir' not in data:
+        raise Exception('UpperDir or LowerDir or MergedDir is not published')
 
+    merged = data['MergedDir']+filename
     upper = data['UpperDir']+filename
     # deduce lower
     for lowerDir in data['LowerDir'].split(':'): # first is outer image, maybe
@@ -33,22 +34,23 @@ def getDiff(fout, container, filename, *args):
         lower = None
 
     if not os.path.exists(upper):
+        # file is not written
         if lower is None:
             # file does not exist
             raise Exception('%s does not exist in container (%s)'%(filename,container))
         else:
             # file is not modified, no need to run diff
+            assert os.path.exists(merged)
             return
+    # now upper surely exists.
+    if lower is None:
+        # file is added
+        lower = '/dev/null'
     else:
-        if lower is None:
-            # file is added
-            lower = '/dev/null'
-        else:
-            # file is modified (or deleted)
-            pass
-    if stat.S_ISCHR(os.stat(upper).st_mode):
+        # file is modified (or deleted)
+        pass
+    if not os.path.exists(merged):
         # file is deleted
-        # todo better logic?
         upper = '/dev/null'
     
     subprocess.call(['diff',lower,upper]+list(args),stdout=fout)
