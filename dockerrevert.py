@@ -5,8 +5,9 @@ import os
 import stat
 import json
 import subprocess
+import shutil
 
-def getDiff(fout, container, filename, *args):
+def revert(container, filename, *args):
     dockerDir = subprocess.check_output(['docker','info','--format','{{.DockerRootDir}}'],shell=False).decode('utf-8').strip()
     if os.getuid() != os.stat(dockerDir).st_uid:
         raise Exception('dockerdiff user (%d) is different from DockerRootDir (%s) user (%d).\nNote: dockerdiff to usual (non-rootless) dockerd requires sudo.'%(os.getuid(),dockerDir,os.stat(dockerDir).st_uid))
@@ -34,32 +35,26 @@ def getDiff(fout, container, filename, *args):
         lower = None
 
     if not os.path.exists(upper):
-        # file is not written
-        if lower is None:
-            # file does not exist
-            raise Exception('%s does not exist in container (%s)'%(filename,container))
-        else:
-            # file is not modified, no need to run diff
-            assert os.path.exists(merged)
-            return
-    # now upper surely exists.
+        raise Exception('the file (%s) is not written yet, no need to revert'%filename)
+
     if lower is None:
         # file is added
-        lower = '/dev/null'
+        os.unlink(merged)
+        os.unlink(upper)
     else:
         # file is modified (or deleted)
-        pass
+        shutil.copy2(lower, merged)
+        os.unlink(upper)
     if not os.path.exists(merged):
         # file is deleted
-        upper = '/dev/null'
-    
-    subprocess.call(['diff',lower,upper]+list(args),stdout=fout)
+        shutil.copy2(lower, merged) # todo: is merged metadata ok?
+        os.unlink(upper)
 
 if __name__=='__main__':
     if len(sys.argv)<3:
-        sys.stderr.write('Usage: [sudo] dockerdiff container filename [diff-args...]\n')
+        sys.stderr.write('Usage: [sudo] dockerrevert container filename\n')
         exit(1)
 
     prog, container, filename = sys.argv[:3]
-    args = sys.argv[3:]
-    getDiff(sys.stdout, container, filename, *args)
+    args = sys.argv[3:] # todo: args is currently unused
+    revert(container, filename, *args)
